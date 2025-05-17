@@ -1,0 +1,100 @@
+import:
+    net.citizensnpcs.api.event.NPCRightClickEvent
+    org.bukkit.inventory.ItemStack
+
+on load:
+    register an item tag named "market_resources" using iron_ingot, diamond, emerald, gold_ingot, netherite_ingot, lapis_lazuli, quartz, redstone, coal
+    register an item tag named "market_generators" using iron_ore, diamond_ore, emerald_ore, gold_ore, ancient_debris, lapis_ore, nether_quartz_ore, redstone_ore, coal_ore    
+    
+    set {_ip} to iron pickaxe with the item flags hide enchants and hide attributes
+    set {_gp} to golden pickaxe with the item flags hide enchants and hide attributes
+    set {_dp} to diamond pickaxe with the item flags hide enchants and hide attributes
+    set {_np} to netherite pickaxe with the item flags hide enchants and hide attributes
+    
+    register an item tag named "market_tools" using {_ip}, {_gp}, {_dp}, {_np}
+
+function makeBaseGui(p: player):
+    set {_currentSlot::%{p}%} to 0
+    set {_i} to iron pickaxe with the item flags hide enchants and hide attributes
+
+    create a gui with virtual chest inventory with 5 rows named "Bazaar":
+        set {_guiSlotsAvailable::*} to 11,12,13,14,15,16,20,21,22,23,24,25,29,30,31,32,33,34
+        loop tag values of custom tag "market_resources":
+            add 1 to {_index}
+            set {_item} to loop-value
+            set {_slot} to {_guiSlotsAvailable::%{_index}%}
+            if {_slot} > 22:
+                stop
+            if {_slot} is set:
+                make gui slot {_slot} to {_item} with lore "&81 product%nl%%nl%&7Buy Price: §60,000,000 coins%nl%&7Sell Price: §60,000,000 coins%nl%%nl%&eClick to view product!"
+                
+        make gui slots 1,2,3,4,5,6,7,8,10,17,19,26,28,35,37,38,39,40,41,42,43,44 with yellow stained glass pane named " " with lore " "
+        make gui slot 0 with glowing iron ingot named "&2Ores & Ingots" with lore "&8Category%nl%%nl%&eCurrently viewing!":
+            set slot 0 of player's current inventory to glowing iron ingot named "&2Ores & Ingots" with lore "&8Category%nl%%nl%&eCurrently viewing!"
+            set slot 9 of player's current inventory to iron ore named "&6Generators" with lore "&8Category%nl%%nl%&eClick to view!"
+            set slot 18 of player's current inventory to {_i} named "&9Tools" with lore "&8Category%nl%%nl%&eClick to view!"
+
+            loop {_guiSlotsAvailable::*}:
+                unformat gui slot loop-value
+
+            set {_index} to 0
+            loop tag values of custom tag "market_resources":
+                add 1 to {_index}
+                set {_item} to loop-value
+                set {_slot} to {_guiSlotsAvailable::%{_index}%}
+                if {_slot} > 22:
+                    stop
+                if {_slot} is set:
+                    set slot {_slot} of player's current inventory to {_item} with lore "&81 product%nl%%nl%&7Buy Price: §60,000,000 coins%nl%&7Sell Price: §60,000,000 coins%nl%%nl%&eClick to view product!"
+                    
+        make gui slot 9 with a iron ore named "&6Generators" with lore "&8Category%nl%%nl%&eClick to view!":
+            set slot 0 of player's current inventory to iron ingot named "&2Ores & Ingots" with lore "&8Category%nl%%nl%&eClick to view!"
+            set slot 9 of player's current inventory to glowing iron ore named "&6Generators" with lore "&8Category%nl%%nl%&eCurrently viewing!"
+            set slot 18 of player's current inventory to {_i} named "&9Tools" with lore "&8Category%nl%%nl%&eClick to view!"
+
+            loop {_guiSlotsAvailable::*}:
+                unformat gui slot loop-value
+
+            set {_index} to 0
+            loop tag values of custom tag "market_generators":
+                add 1 to {_index}
+                set {_item} to loop-value
+                send "Item: %{_item}%" to {_player}
+                set {_slot} to {_guiSlotsAvailable::%{_index}%}
+                send "Slot: %{_slot}%" to {_player}
+                if {_slot} > 22:
+                    stop
+                if {_slot} is set:
+                    set slot {_slot} of player's current inventory to {_item} with lore "&82 products%nl%%nl%&7Buy Price: §60,000,000 coins%nl%&7Sell Price: §60,000,000 coins%nl%%nl%&eClick to view product!"
+
+        make gui slot 18 with {_i} named "&9Tools" with lore "&8Category%nl%%nl%&eClick to view!":
+            set slot 0 of player's current inventory to iron ingot named "&2Ores & Ingots" with lore "&8Category%nl%%nl%&eClick to view!"
+            set slot 9 of player's current inventory to iron ore named "&6Generators" with lore "&8Category%nl%%nl%&eClick to view!"
+            set slot 18 of player's current inventory to glowing {_i} named "&9Tools" with lore "&8Category%nl%%nl%&eCurrently viewing!"
+
+            loop {_guiSlotsAvailable::*}:
+                unformat gui slot loop-value
+                
+            set {_index} to 0
+            loop tag values of custom tag "market_tools":
+                add 1 to {_index}
+                set {_item} to loop-value with the item flags hide enchants and hide attributes
+                send "Item: %{_item}%" to {_player}
+                set {_slot} to {_guiSlotsAvailable::%{_index}%}
+                send "Slot: %{_slot}%" to {_player}
+                if {_slot} > 22:
+                    stop
+                if {_slot} is set:
+                    set slot {_slot} of player's current inventory to {_item} with lore "&85 products%nl%%nl%&7Buy Price: §60,000,000 coins%nl%&7Sell Price: §60,000,000 coins%nl%%nl%&eClick to view product!"
+    
+
+        make gui slot 27, 36 with barrier named "&cNo category yet..."
+        open the gui for {_p}
+
+on NPCRightClickEvent:
+    set {_npc} to event.getNPC()
+    set {_player} to event.getClicker()
+    set {_npcName} to {_npc}.getName()
+
+    if {_npcName} is "Market":
+        makeBaseGui({_player})
