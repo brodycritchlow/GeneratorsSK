@@ -1,0 +1,247 @@
+variables:
+    {fortune_level::%uuid%} = 1
+    {speed_level::%uuid%} = 25 ticks
+    {afk_mode_pool::%uuid%} = 0
+    {afk_mode_enabled_at::%uuid%} = 0
+    {%uuid%::location} = 0
+    {%uuid%::picked_up} = 0
+    {maxAFK} = 3 hours
+    {generator_ids::*} = 0
+    {cycles::%uuid%} = 0
+options:
+    prefix: &7[&eGeneratorCleanup&7] # Prefix for messages
+    generator_item_name_check: "Iron Ore Generator" # Part of the name to check for if NBT is missing
+    generator_material_check: iron ore # Material to check for if NBT is missing
+    nbt_tag_id: "generator_id" # The NBT tag key for the generator ID
+
+command /clear_variables:
+    trigger:
+        loop {generator_ids::*}:
+            set {_genId} to loop-value
+            if {fortune_level::%{_genId}%} is set:
+                set {fortune_level::%{_genId}%} to 1
+            if {speed_level::%{_genId}%} is set:
+                set {speed_level::%{_genId}%} to 25 ticks
+            if {afk_mode_pool::%{_genId}%} is set:
+                delete {afk_mode_pool::%{_genId}%}
+            if {afk_mode_enabled_at::%{_genId}%} is set:
+                delete {afk_mode_enabled_at::%{_genId}%}
+            if {%{_genId}%::location} is set:
+                delete {%{_genId}%::location}
+            if {%{_genId}%::picked_up} is set:
+                delete {%{_genId}%::picked_up}
+            if {cycles::%{_genId}%} is set:
+                set {cycles::%{_genId}%} to 0
+            send "&7[&eGeneratorCleanup&7] &aCleared variables for generator ID: %{_genId}%" to player
+
+command /give_generator:
+    trigger:
+        set {_p} to player
+        set {_generatorName} to "Iron Ore Generator"
+        set {_item} to a iron ore named "%{_generatorName}%"
+        set {_genId} to random uuid
+    
+        modify custom nbt of {_item}:
+            set string tag "generator_id" of nbt to {_genId}
+            set string tag "unstackable_modifier" of nbt of {_eventBlock} to "%unix timestamp of now%" 
+        add {_genId} to {generator_ids::*}
+        set lore of {_item} to " &7⁍&r &7ID: &a%string tag "generator_id" of custom nbt of {_item}%&8!"
+
+        give {_p} 1 of {_item}
+
+command /view_nbt <text>:
+    usage: "&cUsage: /view_nbt <tool|block>"
+    description: "Views the NBT of the held item (tool) or the target block, looking for a 'generator_id'."
+    trigger:
+        set {_p} to player
+        set {_target_type} to argument 1
+
+        if {_target_type} is "tool":
+            set {_item} to player's tool
+            if {_item} is not air:
+                set {_itemNBT} to custom nbt of {_item}
+                if {_itemNBT} is null:
+                    send "&cThe held item does not have any NBT data." to player
+                else if string tag "generator_id" of {_itemNBT} is set:
+                    send "Generator ID (from tool): &a%string tag "generator_id" of {_itemNBT}%" to player
+                else:
+                    send "&cHeld item does not have a 'generator_id' NBT tag. NBT: %{_itemNBT}%" to player
+            else:
+                send "&cYou are not holding an item." to player
+        else if {_target_type} is "block":
+            if target block is set:
+                set {_block} to target block
+                set {_blockNBT} to nbt of {_block}
+                if {_blockNBT} is null:
+                    send "&cThe target block does not have any NBT data." to player
+                else if string tag "generator_id" of {_blockNBT} is set:
+                    send "Generator ID (from block): &a%string tag "generator_id" of {_blockNBT}%" to player
+                else:
+                    send "&cTarget block does not have a 'generator_id' NBT tag. NBT: %{_blockNBT}%" to player
+            else:
+                send "&cYou are not looking at a block." to player
+        else:
+            send usage to player
+            
+on break of iron ore:
+    cancel event
+    set {_actual_id_string} to string tag "generator_id" of nbt of target block
+
+    if {afk_mode_enabled_at::%{_actual_id_string}%} is set:
+        send "&cYou cannot break this generator while AFK mode is enabled!" to player
+        stop
+    else:
+        give player {fortune_level::%{_actual_id_string}%} of iron ingot 
+
+        set {_loc} to location of event-block
+        set block at {_loc} to stone
+        wait 2 ticks
+        set block at {_loc} to andesite
+        wait 2 ticks
+        set block at {_loc} to basalt
+        wait 2 ticks
+        set block at {_loc} to deepslate
+        wait 2 ticks
+        set block at {_loc} to bedrock
+
+        wait {speed_level::%{_actual_id_string}%} 
+
+        set block at {_loc} to deepslate
+        wait 2 ticks
+        set block at {_loc} to basalt
+        wait 2 ticks
+        set block at {_loc} to andesite
+        wait 2 ticks
+        set block at {_loc} to stone
+        wait 2 ticks
+        set block at {_loc} to iron ore
+
+on break of stone:
+    cancel event
+
+on break of andesite:
+    cancel event
+
+on break of basalt:
+    cancel event
+
+on break of deepslate:
+    cancel event
+
+
+on right click:
+    set {_block} to clicked block
+    set {_actual_id_string} to string tag "generator_id" of nbt of {_block}
+
+    if {afk_mode::%{_actual_id_string}%} is true:
+        set {_timeDiff} to difference between {afk_mode_enabled_at::%{_actual_id_string}%} and now 
+        set {_formattedTime} to floor({_timeDiff})
+        if {_timeDiff} > {maxAFK}:
+            set {_timeDiff} to {maxAFK}
+        set {_ticks} to ticks of {_timeDiff}
+        set {_cycleTime} to 16 ticks + {speed_level::%{_actual_id_string}%}
+        set {cycles::%{_actual_id_string}%} to floor({_ticks} / ticks of {_cycleTime})
+        set {afk_mode_pool::%{_actual_id_string}%} to floor(({cycles::%{_actual_id_string}%} * 0.5) * {fortune_level::%{_actual_id_string}%})
+        
+
+    if type of clicked block is iron ore:
+        create a gui with virtual chest inventory with 3 rows named "Iron Ore Generator":
+            make gui slots 0,1,2,3,4,5,6,7,8 with gray stained glass pane named " " with lore " "
+            make gui slots 18, 19, 20, 21, 22, 23, 24, 25 with gray stained glass pane named " " with lore " "
+            make gui slot 9, 11, 13, 15, 17 with gray stained glass pane named " " with lore " "
+            make gui slot 10 with emerald named "&7&lFortune" with lore "&aCurrent Level: %{fortune_level::%{_actual_id_string}%}% %nl%%nl%&aClick to upgrade":
+                set {fortune_level::%{_actual_id_string}%} to {fortune_level::%{_actual_id_string}%} + 1
+                send "&aYou have upgraded your fortune level to %{fortune_level::%{_actual_id_string}%}%!" to player
+                set slot 10 of player's current inventory to emerald named "&7&lFortune" with lore "&aCurrent Level: %{fortune_level::%{_actual_id_string}%}% %nl%%nl%&aClick to upgrade"
+            make gui slot 12 with diamond pickaxe named "&7&lSpeed" with lore "&aCurrent Level: %{speed_level::%{_actual_id_string}%}% %nl%%nl%&aClick to upgrade":
+                if {speed_level::%{_actual_id_string}%} is below 0.55 seconds:
+                    send "&cYou cannot upgrade your speed level any further!" to player
+                else:
+                    set {speed_level::%{_actual_id_string}%} to {speed_level::%{_actual_id_string}%} - 1 ticks
+                    send "&aYou have upgraded your speed level to %{speed_level::%{_actual_id_string}%}%!" to player
+                    set slot 12 of player's current inventory to diamond pickaxe named "&7&lSpeed" with lore "&aCurrent Level: %{speed_level::%{_actual_id_string}%}% %nl%%nl%&aClick to upgrade"
+            if {afk_mode::%{_actual_id_string}%} is true:
+                make gui slot 14 with redstone block named "&7&lDisable AFK Mode":
+                    set {afk_mode::%{_actual_id_string}%} to not {afk_mode::%{_actual_id_string}%}
+                    if {afk_mode::%{_actual_id_string}%} is true:
+                        send "&aAFK Mode enabled!" to player
+                        set {afk_mode_enabled_at::%{_actual_id_string}%} to now 
+                        send "%{afk_mode_enabled_at::%{_actual_id_string}%}%" to player
+                        set slot 14 of player's current inventory to redstone block named "&7&lDisable AFK Mode"
+                    else:
+                        send "&aAFK Mode disabled!" to player
+                        set {afk_mode_enabled_at::%{_actual_id_string}%} to 0
+                        set slot 14 of player's current inventory to emerald block named "&7&lEnable AFK Mode"
+            else:
+                make gui slot 14 with emerald block named "&7&lEnable AFK Mode":
+                    set {afk_mode::%{_actual_id_string}%} to not {afk_mode::%{_actual_id_string}%}
+                    if {afk_mode::%{_actual_id_string}%} is true:
+                        send "&aAFK Mode enabled!" to player
+                        set {afk_mode_enabled_at::%{_actual_id_string}%} to now 
+                        send "%{afk_mode_enabled_at::%{_actual_id_string}%}%" to player
+                        set slot 14 of player's current inventory to redstone block named "&7&lDisable AFK Mode"
+                    else:
+                        send "&aAFK Mode disabled!" to player
+                        set slot 14 of player's current inventory to emerald block named "&7&lEnable AFK Mode"
+            
+            make gui slot 16 with barrier named "&7&lPickup":          
+                if {afk_mode_enabled_at::%{_actual_id_string}%} is set:
+                    send "&cYou cannot pickup this generator while AFK mode is enabled!" to player
+                    stop
+                if {picked_up::%{_actual_id_string}%} is 1:
+                    send "&cYou have already picked up your generator!" to player
+                    open the gui for player
+                    stop
+                else:
+                    set {_item} to a iron ore named "Iron Ore Generator"
+
+                    modify custom nbt of {_item}:
+                        set string tag "generator_id" of nbt to {_actual_id_string}
+
+                    set lore of {_item} to " &7⁍&r &7ID: &a%{_actual_id_string}%&8!"
+                    give player 1 of {_item}
+                    set block at {%{_actual_id_string}%::location} to air
+                    send "&aYou have picked up your Generator!" to player
+                    open the gui for player
+                    set {picked_up::%{_actual_id_string}%} to 1
+            make gui slot 26 with hopper named "&7&lCollect AFK Earnings" with lore "&aYour current earnings: %{afk_mode_pool::%{_actual_id_string}%}% iron ingots!%nl%&aYou have been AFK for %{_timeDiff}%":
+                if {cycles::%{_actual_id_string}%} is 0:
+                    send "&cYou have no earnings to collect!" to player
+                    open the gui for player
+                    stop
+                else:
+                    give player {afk_mode_pool::%{_actual_id_string}%} of iron ingot
+                    send "&aYou have collected your AFK earnings!" to player
+                    set {afk_mode_enabled_at::%{_actual_id_string}%} to now
+                    set {cycles::%{_actual_id_string}%} to 0
+                    set {afk_mode_pool::%{_actual_id_string}%} to 0
+                    open the gui for player
+            open the gui for player
+        
+
+on place:
+    if event-block is iron ore:
+        set {_eventBlock} to event-block    
+        set {_actual_id_string} to string tag "generator_id" of custom nbt of player's tool
+        set {%{_actual_id_string}%::location} to location of {_eventBlock}
+        
+        if {speed_level::%{_actual_id_string}%} is not set:
+            set {speed_level::%{_actual_id_string}%} to 25 ticks
+        if {speed_level::%{_actual_id_string}%} is 0 seconds:
+            set {speed_level::%{_actual_id_string}%} to 25 ticks
+        if {fortune_level::%{_actual_id_string}%} is not set:
+            set {fortune_level::%{_actual_id_string}%} to 1
+        if {afk_mode::%{_actual_id_string}%} is not set:
+            set {afk_mode::%{_actual_id_string}%} to false
+        if {afk_mode_pool::%{_actual_id_string}%} is not set:
+            set {afk_mode_pool::%{_actual_id_string}%} to 0
+
+        set {_item} to a iron ore named "Iron Ore Generator"
+
+        wait 3 ticks
+        modify custom nbt of {_item}:
+            set string tag "generator_id" of nbt of {_eventBlock} to {_actual_id_string}
+            set string tag "unstackable_modifier" of nbt of {_eventBlock} to "%unix timestamp of now%" 
+
+on hunger meter change:
+    cancel event
